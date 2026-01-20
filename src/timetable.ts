@@ -3,8 +3,8 @@ import { TravelSpot } from "./spots";
 export interface FlightDetails {
   departureAirport: string;
   arrivalAirport: string;
-  departureTime: Date;
-  arrivalTime: Date;
+  departureTime: string; 
+  arrivalTime: string;
   flightNumber: string;
 }
 
@@ -19,25 +19,36 @@ export interface TravelPlan {
   from: string | TravelSpot;
   to: string | TravelSpot;
   method: TravelMethod;
-  route?: string; // For bus or MTR
+  route?: string;
 }
 
-export interface DayActivity {
-  time: string;
-  activity: string | TravelSpot | TravelPlan;
+export interface Session {
+  id: string;
+  type: 'breakfast' | 'morning' | 'lunch' | 'afternoon' | 'dinner' | 'night';
+  activities: (TravelSpot | string)[]; 
 }
 
 export interface DayPlan {
-  date: Date;
-  meals: {
-    breakfast: DayActivity[];
-    lunch: DayActivity[];
-    dinner: DayActivity[];
+  date: string; 
+  sessions: {
+    breakfast: Session;
+    morning: Session[];
+    lunch: Session;
+    afternoon: Session[];
+    dinner: Session;
+    night: Session[];
   };
-  activities: DayActivity[];
 }
 
 export interface Timetable {
-  flight: FlightDetails;
+  flight: { arrival: FlightDetails, departure: FlightDetails };
   schedule: DayPlan[];
+}
+
+export interface Plan {
+  id: string;
+  title: string;
+  createdAt: string;
+  timetable: Timetable | null;
+  cart: TravelSpot[];
 }

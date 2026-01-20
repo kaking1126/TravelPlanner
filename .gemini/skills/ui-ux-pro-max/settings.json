@@ -1,0 +1,31 @@
+{
+  "general": {
+    "previewFeatures": true,
+    "usageStatisticsEnabled": true
+  },
+  "coreTools": [
+    "ShellTool",
+    "ReadFileTool",
+    "WriteFileTool"
+  ],
+  "projectId": "flash-ocean-482108-s2",
+  "allowedCommands": [
+    "npm install",
+    "npm run dev",
+    "npm start",
+    "npx",
+    "ls",
+    "git status",
+    "git add",
+    "git commit",
+    "vite"
+  ],
+  "checkpointing": {
+    "enabled": true
+  },
+  "security": {
+    "auth": {
+      "selectedType": "oauth-enterprise"
+    }
+  }
+}

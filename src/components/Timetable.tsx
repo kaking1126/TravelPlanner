@@ -1,102 +1,113 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { DragDropContext, Droppable, Draggable, DropResult } from 'react-beautiful-dnd';
-import { FlightDetails, DayPlan } from '../timetable';
+import { Timetable as TimetableType, Session } from '../timetable';
 import { TravelSpot } from '../spots';
-import { Card, Button, List, Typography } from 'antd';
+import { Card, Button, List, Typography, Divider, Tag } from 'antd';
 import { PlusOutlined } from '@ant-design/icons';
 
-const { Title, Text } = Typography;
+const { Text } = Typography;
 
 interface TimetableProps {
-  flightInfo: { arrival: FlightDetails, departure: FlightDetails } | null;
+  timetable: TimetableType | null;
   cart: TravelSpot[];
+  onAddSession: (dayIndex: number, period: 'morning' | 'afternoon' | 'night') => void;
+  onDragEnd: (result: DropResult) => void;
 }
 
-const createEmptyDay = (date: Date): DayPlan => ({
-  date,
-  meals: {
-    breakfast: [{ time: '09:00', activity: 'Breakfast' }],
-    lunch: [{ time: '13:00', activity: 'Lunch' }],
-    dinner: [{ time: '19:00', activity: 'Dinner' }],
-  },
-  activities: [{ time: '10:00', activity: 'Morning Schedule' }, { time: '14:00', activity: 'Afternoon Schedule' }, { time: '20:00', activity: 'Night Schedule' }],
-});
+const SessionCell: React.FC<{
+  session: Session;
+  dayIndex: number;
+  period: string;
+  sessionIndex: number;
+  label?: string;
+  canAdd?: boolean;
+  onAdd?: () => void;
+}> = ({ session, dayIndex, period, sessionIndex, label, canAdd, onAdd }) => {
+  const droppableId = `${dayIndex}-${period}-${sessionIndex}`;
+  
+  return (
+    <div className="flex flex-col mb-2">
+      <div className="flex justify-between items-center mb-1">
+        <Text strong className="capitalize text-text-secondary font-heading">{label || period}</Text>
+        {canAdd && onAdd && (
+          <Button 
+            type="text" 
+            size="small" 
+            icon={<PlusOutlined />} 
+            onClick={onAdd}
+            className="text-cta hover:text-primary"
+          />
+        )}
+      </div>
+      <Droppable droppableId={droppableId}>
+        {(provided, snapshot) => (
+          <div
+            {...provided.droppableProps}
+            ref={provided.innerRef}
+            className={`p-2 border border-dashed rounded min-h-[60px] transition-colors duration-200 ${
+              snapshot.isDraggingOver ? 'bg-background border-cta' : 'bg-white border-border'
+            }`}
+          >
+            {session.activities.map((item, index) => (
+              <div key={`${session.id}-${index}`} className="mb-2 last:mb-0">
+                {typeof item === 'string' ? (
+                   <div className="p-2 bg-background rounded text-sm text-text">{item}</div>
+                ) : (
+                    <Card size="small" className="shadow-sm border-border" bodyStyle={{ padding: '8px' }}>
+                        <div className="flex items-center gap-2">
+                            <img src={item.imageUrl} alt={item.name} className="w-8 h-8 rounded object-cover" />
+                            <Text className="text-xs font-medium truncate text-text">{item.name}</Text>
+                        </div>
+                    </Card>
+                )}
+              </div>
+            ))}
+            {provided.placeholder}
+          </div>
+        )}
+      </Droppable>
+    </div>
+  );
+};
 
-const TimetableComponent: React.FC<TimetableProps> = ({ flightInfo, cart }) => {
-  const [schedule, setSchedule] = useState<DayPlan[]>(() => {
-    if (!flightInfo) return [];
-
-    const arrival = new Date(flightInfo.arrival.arrivalTime);
-    const departure = new Date(flightInfo.departure.departureTime);
-    const days = [];
-    let currentDate = new Date(arrival.getFullYear(), arrival.getMonth(), arrival.getDate());
-
-    while (currentDate <= departure) {
-      days.push(createEmptyDay(new Date(currentDate)));
-      currentDate.setDate(currentDate.getDate() + 1);
-    }
-    
-    if (days.length > 0) {
-      days[0].activities = [{ time: 'Arrival', activity: flightInfo.arrival.flightNumber }];
-      days[days.length - 1].activities = [{ time: 'Departure', activity: flightInfo.departure.flightNumber }];
-    }
-
-    return days;
-  });
-
-  const onDragEnd = (result: DropResult) => {
-    const { source, destination } = result;
-    if (!destination) return;
-
-    const sourceId = source.droppableId;
-    const destId = destination.droppableId;
-
-    if (sourceId === 'cart' && destId.startsWith('day-')) {
-      const dayIndex = parseInt(destId.split('-')[1], 10);
-      const activityIndex = parseInt(destId.split('-')[2], 10);
-      const spot = cart[source.index];
-      const newSchedule = [...schedule];
-      newSchedule[dayIndex].activities[activityIndex].activity = spot;
-      setSchedule(newSchedule);
-    }
-  };
-
-  const addRow = (dayIndex: number) => {
-    const newSchedule = [...schedule];
-    newSchedule[dayIndex].activities.push({ time: 'New Slot', activity: 'New Activity' });
-    setSchedule(newSchedule);
-  }
-
-  if (!flightInfo) {
-    return <Title level={3} style={{ textAlign: 'center', margin: '20px' }}>Please enter flight information first.</Title>
+const TimetableComponent: React.FC<TimetableProps> = ({ timetable, cart, onAddSession, onDragEnd }) => {
+  if (!timetable) {
+    return <div className="p-8 text-center"><Text className="text-text-secondary">Please set up flight information to generate a timetable.</Text></div>;
   }
 
   return (
-    <DragDropContext onDragEnd={onDragEnd}>
-      <div className="flex">
-        <div className="w-1/4 p-4">
-          <Card title="Travel Spots Cart">
+    <DragDropContext onDragEnd={(res) => onDragEnd(res)}>
+      <div className="flex h-full gap-4">
+        {/* Cart Sidebar */}
+        <div className="w-1/4 min-w-[250px] flex flex-col h-[calc(100vh-100px)] sticky top-4">
+          <Card title={<span className="text-primary font-heading">Attractions</span>} className="h-full flex flex-col border-border shadow-sm" bodyStyle={{ flex: 1, overflow: 'hidden', padding: '12px' }}>
             <Droppable droppableId="cart">
               {(provided) => (
-                <div {...provided.droppableProps} ref={provided.innerRef} className="min-h-[200px]">
+                <div 
+                    {...provided.droppableProps} 
+                    ref={provided.innerRef} 
+                    className="h-full overflow-y-auto pr-2"
+                >
                   <List
                     dataSource={cart}
                     renderItem={(item, index) => (
                       <Draggable key={item.id} draggableId={item.id} index={index}>
-                        {(provided) => (
+                        {(provided, snapshot) => (
                           <div
                             ref={provided.innerRef}
                             {...provided.draggableProps}
                             {...provided.dragHandleProps}
+                            className="mb-2"
+                            style={{ ...provided.draggableProps.style }}
                           >
-                            <List.Item>
-                              <Card 
+                             <Card 
+                                size="small"
                                 hoverable
-                                cover={<img alt={item.name} src={item.imageUrl} />}
+                                className={`transform transition-all border-border ${snapshot.isDragging ? 'shadow-lg rotate-2 scale-105 border-primary' : ''}`}
+                                cover={<img alt={item.name} src={item.imageUrl} className="h-32 object-cover" />}
                               >
-                                <Card.Meta title={item.name} />
+                                <Card.Meta title={<span className="text-text font-medium">{item.name}</span>} description={<Tag color="pink">{item.type}</Tag>} />
                               </Card>
-                            </List.Item>
                           </div>
                         )}
                       </Draggable>
@@ -108,43 +119,94 @@ const TimetableComponent: React.FC<TimetableProps> = ({ flightInfo, cart }) => {
             </Droppable>
           </Card>
         </div>
-        <div className="w-3/4 flex overflow-x-auto p-4">
-          {schedule.map((dayPlan, dayIndex) => (
-            <Card
-              key={dayIndex}
-              title={dayPlan.date.toLocaleDateString()}
-              className="w-[280px] flex-shrink-0 m-2"
-              actions={[<Button type="dashed" onClick={() => addRow(dayIndex)} icon={<PlusOutlined />}>Add Row</Button>]}
-            >
-              {dayPlan.activities.map((activity, activityIndex) => (
-                <Droppable key={activityIndex} droppableId={`day-${dayIndex}-${activityIndex}`}>
-                  {(provided, snapshot) => (
-                    <div
-                      {...provided.droppableProps}
-                      ref={provided.innerRef}
-                      className={`p-2 border border-dashed border-gray-300 rounded mt-2 min-h-[60px] transition-colors duration-200 ${snapshot.isDraggingOver ? 'bg-secondary/20' : 'bg-white'}`}
-                    >
-                      <Text strong>{activity.time}</Text>
-                      <div className="text-center">
-                        {typeof activity.activity === 'string' 
-                          ? activity.activity 
-                          : (
-                            <Card
-                              size="small"
-                              cover={<img alt={activity.activity.name} src={activity.activity.imageUrl} />}
-                            >
-                              <Card.Meta title={activity.activity.name} />
-                            </Card>
-                          )
-                        }
-                      </div>
-                      {provided.placeholder}
-                    </div>
-                  )}
-                </Droppable>
-              ))}
-            </Card>
-          ))}
+
+        {/* Timetable Grid */}
+        <div className="w-3/4 overflow-x-auto pb-4">
+           <div className="flex gap-4">
+             {timetable.schedule.map((day, dayIndex) => (
+               <Card 
+                key={dayIndex} 
+                title={<span className="text-primary font-heading">{new Date(day.date).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}</span>}
+                className="w-[300px] flex-shrink-0 shadow-md border-t-4 border-t-primary"
+                bodyStyle={{ padding: '12px', backgroundColor: '#FDF2F8' }} // bg-background
+               >
+                 <div className="flex flex-col gap-1">
+                    <SessionCell 
+                        session={day.sessions.breakfast} 
+                        dayIndex={dayIndex} 
+                        period="breakfast" 
+                        sessionIndex={0} 
+                        label="🍳 Breakfast"
+                    />
+                    
+                    <Divider className="my-2 border-border" />
+                    
+                    {day.sessions.morning.map((session, sIdx) => (
+                        <SessionCell 
+                            key={session.id}
+                            session={session}
+                            dayIndex={dayIndex}
+                            period="morning"
+                            sessionIndex={sIdx}
+                            label={sIdx === 0 ? "☀️ Morning" : ""}
+                            canAdd={sIdx === 0}
+                            onAdd={() => onAddSession(dayIndex, 'morning')}
+                        />
+                    ))}
+
+                    <Divider className="my-2 border-border" />
+
+                    <SessionCell 
+                        session={day.sessions.lunch} 
+                        dayIndex={dayIndex} 
+                        period="lunch" 
+                        sessionIndex={0} 
+                        label="🍱 Lunch"
+                    />
+
+                    <Divider className="my-2 border-border" />
+
+                    {day.sessions.afternoon.map((session, sIdx) => (
+                        <SessionCell 
+                            key={session.id}
+                            session={session}
+                            dayIndex={dayIndex}
+                            period="afternoon"
+                            sessionIndex={sIdx}
+                            label={sIdx === 0 ? "🍵 Afternoon" : ""}
+                            canAdd={sIdx === 0}
+                            onAdd={() => onAddSession(dayIndex, 'afternoon')}
+                        />
+                    ))}
+
+                    <Divider className="my-2 border-border" />
+
+                    <SessionCell 
+                        session={day.sessions.dinner} 
+                        dayIndex={dayIndex} 
+                        period="dinner" 
+                        sessionIndex={0} 
+                        label="🍽️ Dinner"
+                    />
+
+                    <Divider className="my-2 border-border" />
+
+                    {day.sessions.night.map((session, sIdx) => (
+                        <SessionCell 
+                            key={session.id}
+                            session={session}
+                            dayIndex={dayIndex}
+                            period="night"
+                            sessionIndex={sIdx}
+                            label={sIdx === 0 ? "🌙 Night" : ""}
+                            canAdd={sIdx === 0}
+                            onAdd={() => onAddSession(dayIndex, 'night')}
+                        />
+                    ))}
+                 </div>
+               </Card>
+             ))}
+           </div>
         </div>
       </div>
     </DragDropContext>
