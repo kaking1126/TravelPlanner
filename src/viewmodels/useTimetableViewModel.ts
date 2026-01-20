@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from 'react';
-import { Timetable, DayPlan, Session, FlightDetails } from '../timetable';
+import { Timetable, DayPlan, Session, FlightDetails, ActivityItem } from '../timetable';
 import { v4 as uuidv4 } from 'uuid';
 import { DropResult } from 'react-beautiful-dnd';
 import { TravelSpot } from '../spots';
@@ -62,12 +62,34 @@ export const useTimetableViewModel = (
     updatePlanTimetable(newTimetable);
   }, [timetable, updatePlanTimetable]);
 
+  const updateActivity = useCallback((dayIndex: number, period: string, sessionIndex: number, activityIndex: number, updates: Partial<ActivityItem>) => {
+      if (!timetable) return;
+      const newSchedule = [...timetable.schedule];
+      const daySessions = newSchedule[dayIndex].sessions;
+      
+      let targetSession: Session;
+      if (['breakfast', 'lunch', 'dinner'].includes(period)) {
+         // @ts-ignore
+        targetSession = daySessions[period];
+      } else {
+         // @ts-ignore
+        targetSession = daySessions[period][sessionIndex];
+      }
+
+      if (targetSession && targetSession.activities[activityIndex]) {
+          targetSession.activities[activityIndex] = { ...targetSession.activities[activityIndex], ...updates };
+          const newTimetable = { ...timetable, schedule: newSchedule };
+          setTimetable(newTimetable);
+          updatePlanTimetable(newTimetable);
+      }
+  }, [timetable, updatePlanTimetable]);
+
   const onDragEnd = useCallback((result: DropResult, cart: TravelSpot[]) => {
     if (!result.destination || !timetable) return;
 
     const { source, destination } = result;
     const sourceId = source.droppableId;
-    const destId = destination.droppableId; // format: "dayIndex-period-sessionIndex" e.g., "0-morning-0" or "0-breakfast-0"
+    const destId = destination.droppableId; 
 
     // Moving from Cart to Schedule
     if (sourceId === 'cart') {
@@ -79,7 +101,6 @@ export const useTimetableViewModel = (
       const newSchedule = [...timetable.schedule];
       const daySessions = newSchedule[dayIndex].sessions;
       
-      // Determine target session
       let targetSession: Session;
       if (['breakfast', 'lunch', 'dinner'].includes(period)) {
          // @ts-ignore
@@ -89,30 +110,28 @@ export const useTimetableViewModel = (
         targetSession = daySessions[period][sessionIndex];
       }
 
-      // Add to activities
-      // We insert at the specific index if needed, but for now just push or splice
-      targetSession.activities.splice(destination.index, 0, spot);
+      // Create new ActivityItem from TravelSpot
+      const newActivity: ActivityItem = {
+          id: uuidv4(),
+          title: spot.name,
+          location: spot.cityId, // Using city ID or name as broad location, coordinates are in spotReference
+          remarks: '',
+          spotReference: spot
+      };
+
+      targetSession.activities.splice(destination.index, 0, newActivity);
 
       const newTimetable = { ...timetable, schedule: newSchedule };
       setTimetable(newTimetable);
       updatePlanTimetable(newTimetable);
     } 
-    // Reordering within schedule (optional, but good to have)
-    else {
-        // Implement reorder if source and dest are same session, or move between sessions
-        // For simplicity, let's handle "cart to schedule" primarily as per request implicit focus on "adding".
-        // But drag and drop usually expects reordering.
-        
-        // TODO: specific reorder logic if needed. 
-        // For now, let's assume Cart -> Schedule is the primary flow. 
-        // If the user wants full reorder, we need deeper parsing.
-    }
   }, [timetable, updatePlanTimetable]);
 
   return {
     timetable,
     generateTimetableFromFlight,
     addSessionRow,
+    updateActivity,
     onDragEnd,
   };
 };

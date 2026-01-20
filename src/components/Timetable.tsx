@@ -1,18 +1,49 @@
 import React from 'react';
 import { DragDropContext, Droppable, Draggable, DropResult } from 'react-beautiful-dnd';
-import { Timetable as TimetableType, Session } from '../timetable';
+import { Timetable as TimetableType, Session, ActivityItem } from '../timetable';
 import { TravelSpot } from '../spots';
-import { Card, Button, List, Typography, Divider, Tag } from 'antd';
-import { PlusOutlined } from '@ant-design/icons';
+import { Card, Button, List, Typography, Divider, Tag, Input } from 'antd';
+import { PlusOutlined, EnvironmentOutlined } from '@ant-design/icons';
 
 const { Text } = Typography;
+const { TextArea } = Input;
 
 interface TimetableProps {
   timetable: TimetableType | null;
   cart: TravelSpot[];
   onAddSession: (dayIndex: number, period: 'morning' | 'afternoon' | 'night') => void;
+  onUpdateActivity?: (dayIndex: number, period: string, sessionIndex: number, activityIndex: number, updates: Partial<ActivityItem>) => void;
   onDragEnd: (result: DropResult) => void;
 }
+
+const ActivityCard: React.FC<{ 
+    activity: ActivityItem; 
+    onUpdate: (updates: Partial<ActivityItem>) => void; 
+}> = ({ activity, onUpdate }) => {
+    return (
+        <Card size="small" className="shadow-sm border-border mb-2" bodyStyle={{ padding: '8px' }}>
+            <div className="flex gap-3">
+                {activity.spotReference && (
+                    <img src={activity.spotReference.imageUrl} alt={activity.title} className="w-16 h-16 rounded object-cover flex-shrink-0" />
+                )}
+                <div className="flex-1 min-w-0">
+                    <div className="font-bold text-sm text-text truncate mb-1">{activity.title}</div>
+                    <div className="text-xs text-text-secondary flex items-center gap-1 mb-2 truncate">
+                        <EnvironmentOutlined /> {activity.location}
+                    </div>
+                    <TextArea 
+                        placeholder="Add remarks..." 
+                        autoSize={{ minRows: 1, maxRows: 3 }}
+                        value={activity.remarks}
+                        onChange={(e) => onUpdate({ remarks: e.target.value })}
+                        className="text-xs !bg-gray-50 border-none focus:!bg-white focus:shadow-none p-1 rounded"
+                        bordered={false}
+                    />
+                </div>
+            </div>
+        </Card>
+    );
+};
 
 const SessionCell: React.FC<{
   session: Session;
@@ -22,7 +53,8 @@ const SessionCell: React.FC<{
   label?: string;
   canAdd?: boolean;
   onAdd?: () => void;
-}> = ({ session, dayIndex, period, sessionIndex, label, canAdd, onAdd }) => {
+  onUpdateActivity?: (dayIndex: number, period: string, sessionIndex: number, activityIndex: number, updates: Partial<ActivityItem>) => void;
+}> = ({ session, dayIndex, period, sessionIndex, label, canAdd, onAdd, onUpdateActivity }) => {
   const droppableId = `${dayIndex}-${period}-${sessionIndex}`;
   
   return (
@@ -49,17 +81,11 @@ const SessionCell: React.FC<{
             }`}
           >
             {session.activities.map((item, index) => (
-              <div key={`${session.id}-${index}`} className="mb-2 last:mb-0">
-                {typeof item === 'string' ? (
-                   <div className="p-2 bg-background rounded text-sm text-text">{item}</div>
-                ) : (
-                    <Card size="small" className="shadow-sm border-border" bodyStyle={{ padding: '8px' }}>
-                        <div className="flex items-center gap-2">
-                            <img src={item.imageUrl} alt={item.name} className="w-8 h-8 rounded object-cover" />
-                            <Text className="text-xs font-medium truncate text-text">{item.name}</Text>
-                        </div>
-                    </Card>
-                )}
+              <div key={item.id} className="mb-2 last:mb-0">
+                 <ActivityCard 
+                    activity={item} 
+                    onUpdate={(updates) => onUpdateActivity && onUpdateActivity(dayIndex, period, sessionIndex, index, updates)}
+                 />
               </div>
             ))}
             {provided.placeholder}
@@ -70,7 +96,7 @@ const SessionCell: React.FC<{
   );
 };
 
-const TimetableComponent: React.FC<TimetableProps> = ({ timetable, cart, onAddSession, onDragEnd }) => {
+const TimetableComponent: React.FC<TimetableProps> = ({ timetable, cart, onAddSession, onUpdateActivity, onDragEnd }) => {
   if (!timetable) {
     return <div className="p-8 text-center"><Text className="text-text-secondary">Please set up flight information to generate a timetable.</Text></div>;
   }
@@ -106,7 +132,7 @@ const TimetableComponent: React.FC<TimetableProps> = ({ timetable, cart, onAddSe
                                 className={`transform transition-all border-border ${snapshot.isDragging ? 'shadow-lg rotate-2 scale-105 border-primary' : ''}`}
                                 cover={<img alt={item.name} src={item.imageUrl} className="h-32 object-cover" />}
                               >
-                                <Card.Meta title={<span className="text-text font-medium">{item.name}</span>} description={<Tag color="pink">{item.type}</Tag>} />
+                                <Card.Meta title={<span className="text-text font-medium">{item.name}</span>} description={<Tag color="blue">{item.type}</Tag>} />
                               </Card>
                           </div>
                         )}
@@ -128,7 +154,7 @@ const TimetableComponent: React.FC<TimetableProps> = ({ timetable, cart, onAddSe
                 key={dayIndex} 
                 title={<span className="text-primary font-heading">{new Date(day.date).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}</span>}
                 className="w-[300px] flex-shrink-0 shadow-md border-t-4 border-t-primary"
-                bodyStyle={{ padding: '12px', backgroundColor: '#FDF2F8' }} // bg-background
+                bodyStyle={{ padding: '12px', backgroundColor: '#FDF2F8' }} 
                >
                  <div className="flex flex-col gap-1">
                     <SessionCell 
@@ -137,6 +163,7 @@ const TimetableComponent: React.FC<TimetableProps> = ({ timetable, cart, onAddSe
                         period="breakfast" 
                         sessionIndex={0} 
                         label="🍳 Breakfast"
+                        onUpdateActivity={onUpdateActivity}
                     />
                     
                     <Divider className="my-2 border-border" />
@@ -151,6 +178,7 @@ const TimetableComponent: React.FC<TimetableProps> = ({ timetable, cart, onAddSe
                             label={sIdx === 0 ? "☀️ Morning" : ""}
                             canAdd={sIdx === 0}
                             onAdd={() => onAddSession(dayIndex, 'morning')}
+                            onUpdateActivity={onUpdateActivity}
                         />
                     ))}
 
@@ -162,6 +190,7 @@ const TimetableComponent: React.FC<TimetableProps> = ({ timetable, cart, onAddSe
                         period="lunch" 
                         sessionIndex={0} 
                         label="🍱 Lunch"
+                        onUpdateActivity={onUpdateActivity}
                     />
 
                     <Divider className="my-2 border-border" />
@@ -176,6 +205,7 @@ const TimetableComponent: React.FC<TimetableProps> = ({ timetable, cart, onAddSe
                             label={sIdx === 0 ? "🍵 Afternoon" : ""}
                             canAdd={sIdx === 0}
                             onAdd={() => onAddSession(dayIndex, 'afternoon')}
+                            onUpdateActivity={onUpdateActivity}
                         />
                     ))}
 
@@ -187,6 +217,7 @@ const TimetableComponent: React.FC<TimetableProps> = ({ timetable, cart, onAddSe
                         period="dinner" 
                         sessionIndex={0} 
                         label="🍽️ Dinner"
+                        onUpdateActivity={onUpdateActivity}
                     />
 
                     <Divider className="my-2 border-border" />
@@ -201,6 +232,7 @@ const TimetableComponent: React.FC<TimetableProps> = ({ timetable, cart, onAddSe
                             label={sIdx === 0 ? "🌙 Night" : ""}
                             canAdd={sIdx === 0}
                             onAdd={() => onAddSession(dayIndex, 'night')}
+                            onUpdateActivity={onUpdateActivity}
                         />
                     ))}
                  </div>

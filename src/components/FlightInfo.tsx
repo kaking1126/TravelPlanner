@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Form, Input, Button, DatePicker, Row, Col, Typography, Modal, List, Badge, Steps } from 'antd';
+import React, { useState, useEffect } from 'react';
+import { Form, Input, Button, DatePicker, Row, Col, Typography, Modal, List, Badge, Steps, message } from 'antd';
 import { FlightDetails } from '../timetable';
 import dayjs from 'dayjs';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -9,6 +9,7 @@ const { Title, Text } = Typography;
 
 interface FlightInfoProps {
   onFlightInfoSubmit: (flightInfo: { arrival: FlightDetails, departure: FlightDetails }) => void;
+  initialDestination?: string;
 }
 
 // Mock flight data generator based on search
@@ -18,25 +19,54 @@ const generateMockFlights = (from: string, to: string, date: string) => [
   { id: 'flight-3', number: 'AA-789', from: to || 'LHR', to: from || 'JFK', departure: '11:00', arrival: '14:00', airline: 'American Airlines', price: '$480', date },
 ];
 
-const FlightInfo: React.FC<FlightInfoProps> = ({ onFlightInfoSubmit }) => {
+const FlightInfo: React.FC<FlightInfoProps> = ({ onFlightInfoSubmit, initialDestination }) => {
   const [form] = Form.useForm();
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [flightType, setFlightType] = useState<'arrival' | 'departure' | null>(null);
-  
-  // State for the selected flights
   const [selectedFlights, setSelectedFlights] = useState<{ arrival?: any, departure?: any }>({});
-  
-  // State for search criteria
   const [searchCriteria, setSearchCriteria] = useState<{ arrival?: any, departure?: any }>({});
-
   const [currentStep, setCurrentStep] = useState(0);
   const [availableFlights, setAvailableFlights] = useState<any[]>([]);
+
+  // Auto-fill logic
+  useEffect(() => {
+    // 1. Set destination based on Step 1 selection
+    if (initialDestination) {
+        form.setFieldsValue({
+            arrivalTo: initialDestination,
+            departureFrom: initialDestination
+        });
+    }
+
+    // 2. Try to get user's current city (Simulated for now as Geolocation API gives coords, needing reverse geocoding)
+    // In a real app, we'd use navigator.geolocation and a geocoding API.
+    // Here we simulate a "Current Location" find.
+    const userTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    let estimatedCity = "New York"; // Default fallback
+    if (userTimeZone.includes("London")) estimatedCity = "London";
+    if (userTimeZone.includes("Tokyo")) estimatedCity = "Tokyo";
+    if (userTimeZone.includes("Paris")) estimatedCity = "Paris";
+    
+    // Only set if not set by user already
+    if (!form.getFieldValue('arrivalFrom')) {
+         form.setFieldsValue({
+            arrivalFrom: estimatedCity,
+            departureTo: estimatedCity
+         });
+    }
+  }, [initialDestination, form]);
+
 
   const handleSearch = (type: 'arrival' | 'departure', values: any) => {
     const from = values[`${type}From`];
     const to = values[`${type}To`];
     const date = values[`${type}Date`]?.toISOString();
     
+    if (!from || !to || !date) {
+        message.error("Please fill in all search fields.");
+        return;
+    }
+
     setSearchCriteria(prev => ({ ...prev, [type]: { from, to, date } }));
     setAvailableFlights(generateMockFlights(from, to, date));
     setFlightType(type);
@@ -45,12 +75,10 @@ const FlightInfo: React.FC<FlightInfoProps> = ({ onFlightInfoSubmit }) => {
 
   const handleSelectFlight = (flight: any) => {
     if (flightType) {
-      // Update the main form with selected flight details
       form.setFieldsValue({
         [`${flightType}FlightNumber`]: flight.number,
         [`${flightType}Airport`]: flightType === 'arrival' ? flight.to : flight.from,
         [`${flightType}Time`]: flightType === 'arrival' ? flight.arrival : flight.departure,
-        // Also ensure the display matches the selection
         [`${flightType}From`]: flight.from,
         [`${flightType}To`]: flight.to,
         [`${flightType}Date`]: dayjs(flight.date), 
@@ -58,7 +86,6 @@ const FlightInfo: React.FC<FlightInfoProps> = ({ onFlightInfoSubmit }) => {
 
       setSelectedFlights(prev => {
           const newState = {...prev, [flightType]: flight};
-          // Auto-advance step logic
           if (newState.arrival && !newState.departure && currentStep === 0) setCurrentStep(1);
           if (newState.arrival && newState.departure) setCurrentStep(2);
           return newState;
@@ -77,8 +104,6 @@ const FlightInfo: React.FC<FlightInfoProps> = ({ onFlightInfoSubmit }) => {
   const onFinish = (values: any) => {
     if (!selectedFlights.arrival || !selectedFlights.departure) return;
 
-    // Use values from form or fallback to search criteria if needed, 
-    // but form values should be populated by selection.
     const arrivalDate = values.arrivalDate;
     const departureDate = values.departureDate;
 
@@ -153,7 +178,6 @@ const FlightInfo: React.FC<FlightInfoProps> = ({ onFlightInfoSubmit }) => {
                 </div>
                 
                 <div className="p-8 flex-1 flex flex-col gap-4">
-                    {/* Search Inputs */}
                     <div className="grid grid-cols-2 gap-4">
                         <Form.Item name="arrivalFrom" label="From" rules={[{ required: true }]}>
                             <Input prefix={<MapPin className="w-4 h-4 text-gray-400"/>} placeholder="Origin (e.g. NYC)" />
@@ -166,7 +190,6 @@ const FlightInfo: React.FC<FlightInfoProps> = ({ onFlightInfoSubmit }) => {
                         <DatePicker className="w-full h-12 rounded-lg border-gray-300 shadow-sm" suffixIcon={<Calendar className="text-primary w-5 h-5"/>} />
                     </Form.Item>
 
-                    {/* Search Action */}
                     <Button 
                         type="primary"
                         onClick={() => {
@@ -208,7 +231,6 @@ const FlightInfo: React.FC<FlightInfoProps> = ({ onFlightInfoSubmit }) => {
                 </div>
 
                 <div className="p-8 flex-1 flex flex-col gap-4">
-                     {/* Search Inputs */}
                      <div className="grid grid-cols-2 gap-4">
                         <Form.Item name="departureFrom" label="From" rules={[{ required: true }]}>
                             <Input prefix={<MapPin className="w-4 h-4 text-gray-400"/>} placeholder="Origin" />
@@ -221,7 +243,6 @@ const FlightInfo: React.FC<FlightInfoProps> = ({ onFlightInfoSubmit }) => {
                         <DatePicker className="w-full h-12 rounded-lg border-gray-300 shadow-sm" suffixIcon={<Calendar className="text-secondary w-5 h-5"/>} />
                     </Form.Item>
 
-                    {/* Search Action */}
                     <Button 
                         type="primary"
                         onClick={() => {
@@ -268,7 +289,6 @@ const FlightInfo: React.FC<FlightInfoProps> = ({ onFlightInfoSubmit }) => {
         </AnimatePresence>
       </Form>
 
-      {/* Flight Selection Modal */}
       <Modal 
         title={
             <div className="font-heading text-xl">
@@ -316,7 +336,6 @@ const FlightInfo: React.FC<FlightInfoProps> = ({ onFlightInfoSubmit }) => {
           )}
         />
         
-        {/* Mock Live Data Banner */}
         <div className="mt-4 p-3 bg-blue-50 border border-blue-100 rounded-lg flex items-center gap-3">
              <div className="relative flex h-3 w-3">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>

@@ -22,10 +22,18 @@ export interface TravelPlan {
   route?: string;
 }
 
+export interface ActivityItem {
+    id: string;
+    title: string;
+    location: string;
+    remarks?: string;
+    spotReference?: TravelSpot; // Keep reference to original spot if applicable
+}
+
 export interface Session {
   id: string;
   type: 'breakfast' | 'morning' | 'lunch' | 'afternoon' | 'dinner' | 'night';
-  activities: (TravelSpot | string)[]; 
+  activities: ActivityItem[]; 
 }
 
 export interface DayPlan {
